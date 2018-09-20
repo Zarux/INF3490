@@ -1,1 +1,3 @@
+plotly
+geopy
 numpy==1.15.1
