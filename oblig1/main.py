@@ -3,7 +3,7 @@ import csv
 import random
 import time
 from itertools import permutations, combinations
-
+import matplotlib.patches as mpatches
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -18,7 +18,7 @@ class Tsp:
         self.index_cities = {idx: city.lower() for idx, city in enumerate(self.data[0])}
         self.data.pop(0)
 
-    def run(self, mode, n: int=10, **kwargs):
+    def run(self, mode, n, **kwargs):
         if mode == "exhaustive":
             f = self.exhaustive
         elif mode == "hillclimb":
@@ -38,17 +38,18 @@ class Tsp:
             t1
         ))
         for k, v in self.info.get(mode, {}).items():
-            print(k, v)
+            if not isinstance(v, list):
+                print(k, v)
 
     @staticmethod
-    def read_data(f_name: str) -> list:
+    def read_data(f_name):
         with open(f_name, "r") as f:
             return list(csv.reader(f, delimiter=';'))
 
-    def distance(self, a: str, b: str) -> float:
+    def distance(self, a, b):
         return float(self.data[self.city_indices[a]][self.city_indices[b]])
 
-    def exhaustive(self, n_cities: int=6, **kwargs) -> tuple:
+    def exhaustive(self, n_cities=6, **kwargs):
         cities = list(self.city_indices.keys())[:n_cities]
         best_path = (None, None)
         for perm in permutations(cities):
@@ -58,7 +59,7 @@ class Tsp:
                 best_path = (path, total_distance)
         return best_path
 
-    def hill_climb(self, n_cities: int=6, run_cnt=20, **kwargs) -> tuple:
+    def hill_climb(self, n_cities=6, run_cnt=20, **kwargs):
         cities = list(self.city_indices.keys())[:n_cities]
         paths = []
         for _ in range(run_cnt):
@@ -136,11 +137,13 @@ class Tsp:
             if pop_cnt % 2 != 0:
                 pop_cnt -= 1
             generation_fitness = []
+
             cities = list(self.city_indices.keys())[:n_cities]
             population = [
                 [self.city_indices[city.lower()] for city in np.random.permutation(cities)]
                 for _ in range(pop_cnt)
             ]
+
             for gen_nr in range(gens):
                 avg_fitness = np.average([fitness(x) for x in population])
                 parents = zip(population[:pop_cnt // 2], population[pop_cnt // 2:])
@@ -148,18 +151,13 @@ class Tsp:
                 population += mutate(offspring)
                 generation_fitness.append(avg_fitness)
                 population = sorted(population, key=fitness, reverse=True)[:pop_cnt]
+
             path = [
                 (self.index_cities[population[0][i]], self.index_cities[population[0][i + 1]])
                 for i in range(-1, len(population[0]) - 1)
             ]
             distance = np.sum([self.distance(a, b) for a, b in path])
-            # plot(generation_fitness)
-            return path, distance
-
-        def plot(generation_fitness):
-            fig, ax = plt.subplots()
-            ax.plot(generation_fitness)
-            plt.show()
+            return path, distance, generation_fitness
 
         paths = []
         for _ in range(run_cnt):
@@ -171,9 +169,10 @@ class Tsp:
             "distance_best": sorted_paths[0][1],
             "distance_mean": np.mean([p[1] for p in sorted_paths]),
             "distance_std": np.std([p[1] for p in sorted_paths]),
+            "generation_fitness": sorted_paths[0][2]
         }
 
-        return sorted_paths[0]
+        return sorted_paths[0][0:2]
 
 
 if __name__ == '__main__':
@@ -196,15 +195,30 @@ if __name__ == '__main__':
             run_cnt=args.run_count
         )
     else:
-        t.run(
-            "genetic",
-            n=24,
-            population_cnt=args.population_count,
-            generations=args.generations,
-            m_rate=args.mutation_rate,
-            run_cnt=args.run_count
+        g_fit = []
+        t_p = [50, 100, 200]
+        for p in t_p:
+            print("POPULATION: ", p)
+            t.run(
+                "genetic",
+                n=24,
+                population_cnt=args.population_count,
+                generations=args.generations,
+                m_rate=args.mutation_rate,
+                run_cnt=args.run_count
+            )
+            g_fit.append(t.info["genetic"]["generation_fitness"])
+
+        r_legend = mpatches.Patch(color="red", label="Population: {}".format(t_p[0]))
+        b_legend = mpatches.Patch(color="blue", label="Population: {}".format(t_p[1]))
+        g_legend = mpatches.Patch(color="green", label="Population: {}".format(t_p[2]))
+        plt.plot(
+            range(len(g_fit[0])), g_fit[0], "r",
+            range(len(g_fit[1])), g_fit[1], "b",
+            range(len(g_fit[2])), g_fit[2], "g"
         )
-        print(t.info["genetic"])
+        plt.legend(handles=[r_legend, b_legend, g_legend])
+        plt.show()
         exit()
         for city_count in [10, 24]:
             t.run("hillclimb", n=city_count, run_cnt=20)
