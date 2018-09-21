@@ -145,12 +145,11 @@ class Tsp:
             ]
 
             for gen_nr in range(gens):
-                avg_fitness = np.average([fitness(x) for x in population])
                 parents = zip(population[:pop_cnt // 2], population[pop_cnt // 2:])
                 offspring = recombine(parents)
                 population += mutate(offspring)
-                generation_fitness.append(avg_fitness)
                 population = sorted(population, key=fitness, reverse=True)[:pop_cnt]
+                generation_fitness.append(fitness(population[0]))
 
             path = [
                 (self.index_cities[population[0][i]], self.index_cities[population[0][i + 1]])
@@ -219,10 +218,7 @@ if __name__ == '__main__':
         )
         plt.legend(handles=[r_legend, b_legend, g_legend])
         plt.show()
-        exit()
         for city_count in [10, 24]:
             t.run("hillclimb", n=city_count, run_cnt=20)
-            print(t.info["hillclimb"])
 
-        exit()
         t.run("exhaustive", n=10)
