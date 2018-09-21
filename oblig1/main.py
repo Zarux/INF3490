@@ -1,10 +1,11 @@
-import csv
-from itertools import permutations, combinations
-import time
-import random
-import numpy as np
 import argparse
-from tsp_plot import TSPPlot
+import csv
+import random
+import time
+from itertools import permutations, combinations
+
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 class Tsp:
@@ -18,21 +19,17 @@ class Tsp:
         self.data.pop(0)
 
     def run(self, mode, n: int=10, **kwargs):
-        extra_params = {}
         if mode == "exhaustive":
             f = self.exhaustive
         elif mode == "hillclimb":
             f = self.hill_climb
-            extra_params = {
-                "run_cnt": kwargs.get("run_cnt", 20),
-            }
         elif mode == "genetic":
             f = self.genetic
         else:
             return
 
         t0 = time.time()
-        trip, distance = f(n_cities=n, **extra_params)
+        trip, distance = f(n_cities=n, **kwargs)
         t1 = time.time() - t0
         print("Path: {} > {}\nDistance: {:.3f}\nTime: {:.3f}\n".format(
             " > ".join([p[0].title() for p in trip]),
@@ -40,6 +37,8 @@ class Tsp:
             distance,
             t1
         ))
+        for k, v in self.info.get(mode, {}).items():
+            print(k, v)
 
     @staticmethod
     def read_data(f_name: str) -> list:
@@ -59,11 +58,10 @@ class Tsp:
                 best_path = (path, total_distance)
         return best_path
 
-    def hill_climb(self, n_cities: int=6, run_cnt=20) -> tuple:
+    def hill_climb(self, n_cities: int=6, run_cnt=20, **kwargs) -> tuple:
         cities = list(self.city_indices.keys())[:n_cities]
         paths = []
         for _ in range(run_cnt):
-            i = 0
             current_path = (None, -1)
             perm = np.random.permutation(cities)
             while 1:
@@ -94,7 +92,7 @@ class Tsp:
         }
         return sorted_paths[0]
 
-    def genetic(self, n_cities, generations=100, population_cnt=1000, m_rate=0.03):
+    def genetic(self, n_cities, generations=100, population_cnt=100, m_rate=0.1, run_cnt=1, **kwargs):
 
         def recombine(parents):
             offsprings = []
@@ -144,34 +142,73 @@ class Tsp:
                 for _ in range(pop_cnt)
             ]
             for gen_nr in range(gens):
+                avg_fitness = np.average([fitness(x) for x in population])
                 parents = zip(population[:pop_cnt // 2], population[pop_cnt // 2:])
                 offspring = recombine(parents)
                 population += mutate(offspring)
-                total_fitness = sum([fitness(x) for x in population])
-                generation_fitness.append(total_fitness)
+                generation_fitness.append(avg_fitness)
                 population = sorted(population, key=fitness, reverse=True)[:pop_cnt]
             path = [
                 (self.index_cities[population[0][i]], self.index_cities[population[0][i + 1]])
                 for i in range(-1, len(population[0]) - 1)
             ]
             distance = np.sum([self.distance(a, b) for a, b in path])
+            # plot(generation_fitness)
             return path, distance
 
-        return evolve(gens=generations, pop_cnt=population_cnt)
+        def plot(generation_fitness):
+            fig, ax = plt.subplots()
+            ax.plot(generation_fitness)
+            plt.show()
+
+        paths = []
+        for _ in range(run_cnt):
+            paths.append(evolve(gens=generations, pop_cnt=population_cnt))
+
+        sorted_paths = sorted(paths, key=lambda x: x[1])
+        self.info["genetic"] = {
+            "distance_worst": sorted_paths[-1][1],
+            "distance_best": sorted_paths[0][1],
+            "distance_mean": np.mean([p[1] for p in sorted_paths]),
+            "distance_std": np.std([p[1] for p in sorted_paths]),
+        }
+
+        return sorted_paths[0]
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", type=str, choices=("exhaustive", "hillclimb", "report"))
+    parser.add_argument("mode", type=str, choices=("exhaustive", "hillclimb", "genetic", "report"))
     parser.add_argument("-n", "--number-of-cities", type=int, default=6)
+    parser.add_argument("-m", "--mutation-rate", type=float, default=0.05)
+    parser.add_argument("-g", "--generations", type=int, default=100)
+    parser.add_argument("-p", "--population-count", type=int, default=200)
+    parser.add_argument("-r", "--run-count", type=int, default=1)
     args = parser.parse_args()
     t = Tsp()
     if args.mode != "report":
-        t.run(args.mode, n=args.number_of_cities)
+        t.run(
+            args.mode,
+            n=args.number_of_cities,
+            population_cnt=args.population_count,
+            generations=args.generations,
+            m_rate=args.mutation_rate,
+            run_cnt=args.run_count
+        )
     else:
-        t.run("genetic", n=24)
+        t.run(
+            "genetic",
+            n=24,
+            population_cnt=args.population_count,
+            generations=args.generations,
+            m_rate=args.mutation_rate,
+            run_cnt=args.run_count
+        )
+        print(t.info["genetic"])
         exit()
-        for city_count in [10]:
-            t.run("hillclimb", n=city_count, run_cnt=1)
+        for city_count in [10, 24]:
+            t.run("hillclimb", n=city_count, run_cnt=20)
             print(t.info["hillclimb"])
+
+        exit()
         t.run("exhaustive", n=10)
