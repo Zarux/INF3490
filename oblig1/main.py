@@ -201,7 +201,7 @@ if __name__ == '__main__':
             t.run(
                 "genetic",
                 n=24,
-                population_cnt=args.population_count,
+                population_cnt=p,
                 generations=args.generations,
                 m_rate=args.mutation_rate,
                 run_cnt=args.run_count
