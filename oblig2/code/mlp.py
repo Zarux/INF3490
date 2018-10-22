@@ -3,10 +3,6 @@
     change it to fit your needs.
 """
 import numpy as np
-import pandas as pd
-from sklearn.metrics import accuracy_score
-
-np.seterr("raise")
 
 
 class Neuron:
@@ -25,7 +21,6 @@ class Neuron:
     def d_activate(x):
         k = Neuron.k
         return (k * np.exp(-k * x)) / ((np.exp(-k * x) + 1)**2)
-        # return np.exp(x)/((np.exp(-x))+1)**2
 
 
 class Layer:
@@ -75,7 +70,12 @@ class MLP:
                 o_vals = [n.value for n in self.layers[-1].neurons]
                 output_list.append(o_vals.index(max(o_vals)))
                 target_list.append(list(t).index(max(list(t))))
-            accuracies.append(accuracy_score(target_list, output_list, normalize=True))
+
+            classes = 8
+            matrix = [[0 for _ in range(classes)] for _ in range(classes)]
+            for out, tar in zip(output_list, target_list):
+                matrix[tar][out] += 1
+            accuracies.append(self.accuracy(matrix))
 
             # Detect drop in accuracy
             if len(accuracies) > 10 and np.mean(accuracies[-5:]) < np.mean(accuracies[-10:-5]):
@@ -120,6 +120,10 @@ class MLP:
                 next_neuron_value += neuron.value * neuron.weights[nidx]
             next_neuron.value = Neuron.activate(next_neuron_value)
 
+    @staticmethod
+    def accuracy(cm):
+        return sum(cm[i][i] for i in range(len(cm))) / sum([sum(col) for col in cm])
+
     def confusion(self, inputs, targets):
         output_list = []
         target_list = []
@@ -133,12 +137,18 @@ class MLP:
             output_list.append(o_vals.index(max(o_vals)))
             target_list.append(list(targets[idx]).index(max(list(targets[idx]))))
 
-        cm = pd.crosstab(
-            pd.Series(target_list, name="Actual"),
-            pd.Series(output_list, name="Predicted"),
-            margins=True
-        )
-        print("Model accuracy: {} ".format(accuracy_score(target_list, output_list, normalize=True)))
-        print(cm)
+        classes = 8
+        matrix = [[0 for _ in range(classes)] for _ in range(classes)]
+        for out, tar in zip(output_list, target_list):
+            matrix[out][tar] += 1
+
+        print("   " + "  ".join([str(x) for x in range(classes)]))
+
+        for idx, c in enumerate(matrix):
+            print(idx, end="  ")
+            for r in c:
+                print("{:02}".format(r), end=" ")
+            print()
+        print("Model accuracy: {} ".format(self.accuracy(matrix)))
 
 
